@@ -23,6 +23,12 @@ async function getBlockTxs(height) {
     return block.tx
 }
 
+async function getLatestBlockHeight() {
+    return await bch.rpc.getBlockCount()
+}
+
+const finalizeNumber = 9
+
 export async function scan() {
     await InitDB()
     let latestSyncHeight = 792765;
@@ -40,16 +46,30 @@ export async function scan() {
         latestSyncHeight++
         latestSyncTxPos = -1
     }
-    for (let h = latestSyncHeight; ;) {
+    let latestHeight = await getLatestBlockHeight()
+    for (; latestHeight >= latestSyncHeight + finalizeNumber;) {
+        // catchup the chain tip, block behind (include) latestSyncHeight all finalized
+        let latestFinalizedHeight = latestHeight - finalizeNumber
+        await catchup(latestSyncHeight, latestSyncTxPos, latestFinalizedHeight)
+        // we catch the latestFinalizedHeight prev found, but the latestHeight may out of date,
+        // refresh the latestFinalizedHeight and recheck the latestHeight vs latestSyncHeight + finalizeNumber
+        latestSyncHeight = latestFinalizedHeight + 1
+        latestSyncTxPos = 0
+        latestHeight = await getLatestBlockHeight()
+    }
+    // latestSyncHeight is not finalized
+    
+}
+
+async function catchup(latestSyncHeight, latestSyncTxPos, latestFinalizedHeight) {
+    for (let h = latestSyncHeight; h <= latestFinalizedHeight;) {
         console.log("handle block:%d", h)
         let txs = await getBlockTxs(h)
         //console.log(txs)
-        if (txs === undefined) {
-            // we suppose 'getBlockTxs' not return undefined as of network error,
-            // so we think we have caught the chain tip here,
-            // todo: and we scan mempool in loop mode here
+        for (; txs === undefined;) {
+            // try until we got
             await sleep(6 * 1000) // 6s
-            continue
+            txs = await getBlockTxs(h)
         }
         for (let i in txs) {
             if (latestSyncHeight == h && i <= latestSyncTxPos) {
