@@ -84,6 +84,18 @@ export async function DeleteUtxo(id) {
     });
 }
 
+export async function UpdateSpentByList(id, txid) {
+    let utxo = await Utxos.findOne({where: {id: id}}, {raw: true})
+    if (utxo == undefined) {
+        return
+    }
+    let spentByList = txid
+    if (utxo.spentByList !== undefined) {
+        spentByList = utxo.spentByList + "," + txid
+    }
+    await Utxos.update({spentByList: spentByList}, {where: {id: id}})
+}
+
 export async function GetUtxosByCategory(category) {
     if (category == undefined) {
         return
