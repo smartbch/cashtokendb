@@ -33,6 +33,8 @@ export async function InitDB() {
             tokenAmount: DataTypes.BIGINT,
             nftCommitment: DataTypes.STRING,
             nftCapability: DataTypes.STRING, // none || mutable || minting
+            covenantBytecode: DataTypes.STRING, // covenant's "bare" bytecode compiled by cashscript
+            constructorArgs: DataTypes.STRING, // the constructor's arguments for a covenant
             owner: DataTypes.STRING,
             spentByList: DataTypes.STRING, // txs separated by comma
             addTime: DataTypes.INTEGER,
@@ -78,6 +80,8 @@ export async function InsertUtxoIntoDB(utxo) {
             tokenAmount: utxo.tokenAmount,
             nftCommitment: utxo.nftCommitment,
             nftCapability: utxo.nftCapability,
+            covenantBytecode: utxo.covenantBytecode,
+            constructorArgs: utxo.constructorArgs,
             owner: utxo.owner,
             spentByList: utxo.spentByList,
             addTime: utxo.addTime,
@@ -135,3 +139,19 @@ export async function GetUtxosByCommitment(commitment) {
         }
     )
 }
+
+export async function GetUtxosByCategoryAndCommitment(category, commitment) {
+    if (category == undefined) {
+        return
+    }
+    return await Utxos.findAll(
+        {
+            where: {
+                category: category,
+                nftCommitment: commitment
+            },
+            raw: true
+        }
+    )
+}
+

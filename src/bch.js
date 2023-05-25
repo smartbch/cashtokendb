@@ -170,15 +170,21 @@ async function collectUtxoInfos(tx, handleSpentUtxoFunc, skipInput = false) {
         }
     }
     for (let i in tx.vout) {
-        let vout = tx.vout[i]
-        let tokenData = vout.tokenData
-        if (tokenData !== undefined) {
+        let vout = tx.vout[i];
+	let revealedInfo = undefined;
+	if (i < tx.vout.length - 1) {
+	   revealedInfo = parseRevealedInfo(vout, tx.vout[i+1]); //TODO
+	}
+        let tokenData = vout.tokenData;
+        if (tokenData !== undefined || revealedInfo !== undefined) {
             let utxo = {
                 id: tx.txid + "-" + i,
                 lockScript: vout.scriptPubKey?.hex,
                 bchValue: vout.value,
                 category: tokenData.category,
                 tokenAmount: tokenData.amount,
+                covenantBytecode: revealedInfo?.covenantBytecode,
+                constructorArgs: revealedInfo?.constructorArgs,
                 nftCommitment: tokenData.nft?.commitment,
                 nftCapability: tokenData.nft?.capability
             }
