@@ -91,7 +91,7 @@ export async function UpdateSpentByList(id, txid) {
     }
     let spentByList = txid
     if (utxo.spentByList !== undefined) {
-        spentByList = utxo.spentByList + "," + txid
+        spentByList = utxo.spentByList + "," + txid //todo: repeat txid check
     }
     await Utxos.update({spentByList: spentByList}, {where: {id: id}})
 }

@@ -9,7 +9,7 @@ let password = ''
 const httpBlockchainProvider = new HttpProvider(url, username, password);
 const bch = new BCH(httpBlockchainProvider, httpBlockchainProvider);
 
-async function getBlockTxs(height) {
+async function getBlockTxsAndPrevBlkHash(height) {
     let blkHash = await bch.rpc.getblockhash(height);
     //console.log(blkHash)
     if (blkHash == undefined) {
@@ -27,24 +27,26 @@ async function getLatestBlockHeight() {
     return await bch.rpc.getBlockCount()
 }
 
+const genesisScanHeight = 792766;
+const defaultTxPos = -1
 const finalizeNumber = 9
 
 export async function scan() {
     await InitDB()
-    let latestSyncHeight = 792765;
-    let latestSyncTxPos = -1;
+    let latestSyncHeight = genesisScanHeight;
+    let latestSyncTxPos = defaultTxPos;
     let syncInfo = await GetSyncInfo()
     if (syncInfo != undefined) {
         latestSyncHeight = syncInfo.latestSyncHeight
         latestSyncTxPos = syncInfo.latestSyncTxPos
     }
-    let txs = await getBlockTxs(latestSyncHeight)
+    let txs = await getBlockTxsAndPrevBlkHash(latestSyncHeight)
     if (txs == undefined) {
         throw new Error("latestSyncHeight should exist!")
     }
     if (txs.length == latestSyncTxPos + 1) {
         latestSyncHeight++
-        latestSyncTxPos = -1
+        latestSyncTxPos = defaultTxPos
     }
     let latestHeight = await getLatestBlockHeight()
     let latestFinalizedHeight
@@ -55,15 +57,15 @@ export async function scan() {
         // we catch the latestFinalizedHeight prev found, but the latestHeight may out of date,
         // refresh the latestFinalizedHeight and recheck the latestHeight vs latestSyncHeight + finalizeNumber
         latestSyncHeight = latestFinalizedHeight + 1
-        latestSyncTxPos = -1
+        latestSyncTxPos = defaultTxPos
         latestHeight = await getLatestBlockHeight()
     }
     // latestSyncHeight is not finalized
     await handleBlocks(latestSyncHeight, latestSyncTxPos, latestHeight, AddTxidToSpentByList)
     // handle the latest block and new finalized block and mempool
-    let prevBlkHash = await bch.rpc.getblockhash(latestHeight);
+    let prevBlkHash = await bch.rpc.getblockhash(latestHeight); //todo: move to SyncInfo
     for (let h = latestHeight + 1; ;) {
-        let [txs, newPrevBlkHash] = await getBlockTxs(h)
+        let [txs, newPrevBlkHash] = await getBlockTxsAndPrevBlkHash(h)
         if (txs == undefined) {
             // handle mempool here
             await handleMempool()
@@ -74,7 +76,7 @@ export async function scan() {
             // 2. check if reorg, if yes, handle the blocks we not have seen before
             if (newPrevBlkHash != prevBlkHash) {
                 // be rough, we get all blocks not finalized when reorg happen
-                await handleBlocks(h - finalizeNumber + 1, -1, h-1, AddTxidToSpentByList)
+                await handleBlocks(h - finalizeNumber + 1, -1, h - 1, AddTxidToSpentByList)
             }
             prevBlkHash = newPrevBlkHash
             // 3. if not, handle the newest tip block txs
@@ -89,8 +91,27 @@ export async function scan() {
     }
 }
 
-async function handleMempool() {
+let oldTxsInMempool;
 
+async function handleMempool() {
+    let txs = await bch.rpc.getrawmempool();
+    if (txs == undefined) {
+        return
+    }
+    let newTxs;
+    if (oldTxsInMempool == undefined) {
+        oldTxsInMempool = txs
+        newTxs = txs
+    } else {
+        newTxs = txs.filter(x => oldTxsInMempool.indexOf(x) === -1)
+    }
+    for (let i = 0; i < newTxs.length; i++) {
+        let tx = await bch.rpc.getrawtransaction(newTxs[i], true)
+        if (tx == undefined) {
+            continue
+        }
+        await collectUtxoInfos(txs[i], AddTxidToSpentByList)
+    }
 }
 
 async function handleFinalizeBlock(h) {
@@ -112,12 +133,12 @@ async function catchup(latestSyncHeight, latestSyncTxPos, latestFinalizedHeight)
 async function handleBlocks(startHeight, startTxPos, endHeight, handleSpentUtxoFunc) {
     for (let h = startHeight; h <= endHeight; h++) {
         console.log("handle block:%d", h)
-        let txs = await getBlockTxs(h)
+        let txs = await getBlockTxsAndPrevBlkHash(h)
         //console.log(txs)
         for (; txs === undefined;) {
             // try until we got
             await sleep(6 * 1000) // 6s
-            txs = await getBlockTxs(h)
+            txs = await getBlockTxsAndPrevBlkHash(h)
         }
         for (let i in txs) {
             if (startHeight == h && i <= startTxPos) {
