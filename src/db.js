@@ -9,6 +9,7 @@ export async function InitDB() {
             dialect: 'sqlite',
             storage: './token.sqlite',
             logging: false,
+            query:{raw:true}
         }
     );
     //const sequelize = new Sequelize('sqlite::memory:');
@@ -63,6 +64,11 @@ export async function GetSyncInfo() {
 }
 
 export async function InsertUtxoIntoDB(utxo) {
+    let utxoInDb = await Utxos.findOne({where: {id: utxo.id}})
+    if (utxoInDb != undefined) {
+        console.log("utxo:%s already here", utxo.id)
+        return
+    }
     await Utxos.create(
         {
             id: utxo.id,
@@ -85,14 +91,20 @@ export async function DeleteUtxo(id) {
 }
 
 export async function UpdateSpentByList(id, txid) {
-    let utxo = await Utxos.findOne({where: {id: id}}, {raw: true})
+    let utxo = await Utxos.findOne({where: {id: id}})
     if (utxo == undefined) {
         return
     }
     let spentByList = txid
-    if (utxo.spentByList !== undefined) {
-        spentByList = utxo.spentByList + "," + txid //todo: repeat txid check
+    //console.log(utxo)
+    if (utxo.spentByList !== null) {
+        let txidList = utxo.spentByList.split(',')
+        if (txidList.indexOf(txid) >= 0) {
+            return
+        }
+        spentByList = utxo.spentByList + "," + txid
     }
+    //console.log("spentByList:", spentByList)
     await Utxos.update({spentByList: spentByList}, {where: {id: id}})
 }
 

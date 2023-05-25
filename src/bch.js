@@ -2,9 +2,14 @@ import {BCH, HttpProvider} from 'bchjs';
 import {DeleteUtxo, GetSyncInfo, InitDB, InsertOrUpdateSyncInfo, InsertUtxoIntoDB, UpdateSpentByList} from './db.js'
 import {sleep} from "./util.js";
 
-let url = ''
-let username = ''
-let password = ''
+const url = ''
+const username = ''
+const password = ''
+
+//const genesisScanHeight = 792766;
+const genesisScanHeight = 794160
+const defaultTxPos = -1
+const finalizeNumber = 9
 
 const httpBlockchainProvider = new HttpProvider(url, username, password);
 const bch = new BCH(httpBlockchainProvider, httpBlockchainProvider);
@@ -24,12 +29,8 @@ async function getBlockTxsAndPrevBlkHash(height) {
 }
 
 async function getLatestBlockHeight() {
-    return await bch.rpc.getBlockCount()
+    return await bch.rpc.getblockcount()
 }
-
-const genesisScanHeight = 792766;
-const defaultTxPos = -1
-const finalizeNumber = 9
 
 export async function scan() {
     await InitDB()
@@ -40,28 +41,26 @@ export async function scan() {
         latestSyncHeight = syncInfo.latestSyncHeight
         latestSyncTxPos = syncInfo.latestSyncTxPos
     }
-    let txs = await getBlockTxsAndPrevBlkHash(latestSyncHeight)
+    let [txs,] = await getBlockTxsAndPrevBlkHash(latestSyncHeight)
     if (txs == undefined) {
         throw new Error("latestSyncHeight should exist!")
     }
     if (txs.length == latestSyncTxPos + 1) {
         latestSyncHeight++
-        latestSyncTxPos = defaultTxPos
     }
     let latestHeight = await getLatestBlockHeight()
     let latestFinalizedHeight
     for (; latestHeight >= latestSyncHeight + finalizeNumber;) {
         // catchup the chain tip, block behind (include) latestSyncHeight all finalized
         latestFinalizedHeight = latestHeight - finalizeNumber
-        await catchup(latestSyncHeight, latestSyncTxPos, latestFinalizedHeight)
+        await catchup(latestSyncHeight, latestFinalizedHeight)
         // we catch the latestFinalizedHeight prev found, but the latestHeight may out of date,
         // refresh the latestFinalizedHeight and recheck the latestHeight vs latestSyncHeight + finalizeNumber
         latestSyncHeight = latestFinalizedHeight + 1
-        latestSyncTxPos = defaultTxPos
         latestHeight = await getLatestBlockHeight()
     }
     // latestSyncHeight is not finalized
-    await handleBlocks(latestSyncHeight, latestSyncTxPos, latestHeight, AddTxidToSpentByList)
+    await handleBlocks(latestSyncHeight, latestHeight, AddTxidToSpentByList)
     // handle the latest block and new finalized block and mempool
     let prevBlkHash = await bch.rpc.getblockhash(latestHeight); //todo: move to SyncInfo
     for (let h = latestHeight + 1; ;) {
@@ -71,12 +70,12 @@ export async function scan() {
             await handleMempool()
             await sleep(6 * 1000) // handle mempool txs every 6s
         } else {
-            // 1. handle the newest finalized block first
+            // 1. handle the newest finalized block first, only handle output, though that input handle is reentrant
             await handleFinalizeBlock(h - finalizeNumber)
             // 2. check if reorg, if yes, handle the blocks we not have seen before
             if (newPrevBlkHash != prevBlkHash) {
                 // be rough, we get all blocks not finalized when reorg happen
-                await handleBlocks(h - finalizeNumber + 1, -1, h - 1, AddTxidToSpentByList)
+                await handleBlocks(h - finalizeNumber + 1, h - 1, AddTxidToSpentByList)
             }
             prevBlkHash = newPrevBlkHash
             // 3. if not, handle the newest tip block txs
@@ -94,7 +93,9 @@ export async function scan() {
 let oldTxsInMempool;
 
 async function handleMempool() {
+    console.log("handle mempool")
     let txs = await bch.rpc.getrawmempool();
+    //console.log("txs number in mempool:", txs.length)
     if (txs == undefined) {
         return
     }
@@ -105,17 +106,20 @@ async function handleMempool() {
     } else {
         newTxs = txs.filter(x => oldTxsInMempool.indexOf(x) === -1)
     }
+    console.log("new txs number in mempool:", newTxs.length)
     for (let i = 0; i < newTxs.length; i++) {
         let tx = await bch.rpc.getrawtransaction(newTxs[i], true)
+        //console.log(tx)
         if (tx == undefined) {
             continue
         }
-        await collectUtxoInfos(txs[i], AddTxidToSpentByList)
+        await collectUtxoInfos(newTxs[i], AddTxidToSpentByList)
     }
 }
 
 async function handleFinalizeBlock(h) {
-    await handleBlocks(h, -1, h, deleteUtxoById)
+    console.log("handle new finalized block:%d", h)
+    await handleBlocks(h, h, deleteUtxoById, true)
 }
 
 async function AddTxidToSpentByList(spentUtxoId, txid) {
@@ -126,41 +130,44 @@ async function deleteUtxoById(spentUtxoId, txid) {
     await DeleteUtxo(spentUtxoId)
 }
 
-async function catchup(latestSyncHeight, latestSyncTxPos, latestFinalizedHeight) {
-    await handleBlocks(latestSyncHeight, latestSyncTxPos, latestFinalizedHeight, deleteUtxoById)
+async function catchup(latestSyncHeight, latestFinalizedHeight) {
+    console.log("In catchup, latestSyncHeight:%d,latestFinalizedHeight:%d", latestSyncHeight, latestFinalizedHeight)
+    await handleBlocks(latestSyncHeight, latestFinalizedHeight, deleteUtxoById)
 }
 
-async function handleBlocks(startHeight, startTxPos, endHeight, handleSpentUtxoFunc) {
+let idsToBeDeletedInBlock = [];
+async function handleBlocks(startHeight, endHeight, handleSpentUtxoFunc, skipInput = false) {
     for (let h = startHeight; h <= endHeight; h++) {
         console.log("handle block:%d", h)
-        let txs = await getBlockTxsAndPrevBlkHash(h)
+        idsToBeDeletedInBlock = []
+        let txs;
+        [txs,] = await getBlockTxsAndPrevBlkHash(h)
         //console.log(txs)
         for (; txs === undefined;) {
             // try until we got
-            await sleep(6 * 1000) // 6s
-            txs = await getBlockTxsAndPrevBlkHash(h)
+            await sleep(6 * 1000); // 6s
+            [txs,] = await getBlockTxsAndPrevBlkHash(h)
         }
         for (let i in txs) {
-            if (startHeight == h && i <= startTxPos) {
-                continue
-            }
-            console.log("handle tx: %s in block:%d", txs[i].txid, h)
-            await collectUtxoInfos(txs[i], handleSpentUtxoFunc)
+            //console.log("handle tx: %s in block:%d", txs[i].txid, h)
+            await collectUtxoInfos(txs[i], handleSpentUtxoFunc, skipInput)
             await InsertOrUpdateSyncInfo(h, i)
         }
     }
 }
 
-async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
-    for (let i in tx.vin) {
-        let vin = tx.vin[i]
-        if (vin.txid == undefined) {
-            // it is a coinbase, skip
-            continue
+async function collectUtxoInfos(tx, handleSpentUtxoFunc, skipInput = false) {
+    if (!skipInput) {
+        for (let i in tx.vin) {
+            let vin = tx.vin[i]
+            if (vin.txid == undefined) {
+                // it is a coinbase, skip
+                continue
+            }
+            let id = vin.txid + "-" + vin.vout
+            idsToBeDeletedInBlock.push(id)
+            await handleSpentUtxoFunc(id, tx.txid)
         }
-        let id = vin.txid + "-" + vin.vout
-        //todo: support spentByList later, cannot delete utxo in recent nine blocks and mempool, it may reorg
-        await handleSpentUtxoFunc(id)
     }
     for (let i in tx.vout) {
         let vout = tx.vout[i]
@@ -175,19 +182,16 @@ async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
                 nftCommitment: tokenData.nft?.commitment,
                 nftCapability: tokenData.nft?.capability
             }
+            if (idsToBeDeletedInBlock.indexOf(utxo.id) >= 0) {
+                console.log("id:%s already be spent somewhere before in the same block", utxo.id)
+                continue
+            }
             if (vout.scriptPubKey.addresses != undefined) {
                 utxo.owner = vout.scriptPubKey.addresses[0]
             }
             utxo.addTime = Date.now()
             await InsertUtxoIntoDB(utxo)
-            console.log("insert new token utxo:")
-            console.log(utxo)
+            console.log("insert new token utxo:", utxo.id)
         }
     }
 }
-
-// async function test() {
-//     await scan()
-// }
-//
-// await test()

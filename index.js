@@ -1,10 +1,7 @@
 import express from 'express';
 import bodyParser from 'body-parser';
 import {scan} from "./src/bch.js";
-import {
-    GetUtxosByCategory,
-    GetUtxosByCommitment,
-} from "./src/db.js";
+import {GetUtxosByCategory, GetUtxosByCommitment} from "./src/db.js";
 
 const app = express();
 app.use(bodyParser.urlencoded({extended: false}));
@@ -30,7 +27,8 @@ app.get('/utxos', async (req, res) => {
     res.send(utxos);
 });
 
-const listenPort = 8000
+const listenPort = 8001
+
 app.listen(listenPort, async () => {
     console.log('listening port: ', listenPort);
     await scan()
