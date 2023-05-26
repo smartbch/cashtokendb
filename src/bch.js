@@ -1,13 +1,15 @@
 import {BCH, HttpProvider} from 'bchjs';
 import {DeleteUtxo, GetSyncInfo, InitDB, InsertOrUpdateSyncInfo, InsertUtxoIntoDB, UpdateSpentByList} from './db.js'
 import {sleep} from "./util.js";
+import {BITBOX} from 'bitbox-sdk';
+
+const bitbox = new BITBOX();
 
 const url = ''
 const username = ''
 const password = ''
 
-//const genesisScanHeight = 792766;
-const genesisScanHeight = 794160
+const genesisScanHeight = 792766;
 const defaultTxPos = -1
 const finalizeNumber = 9
 
@@ -158,6 +160,37 @@ async function handleBlocks(startHeight, endHeight, handleSpentUtxoFunc) {
     }
 }
 
+function parseRevealedInfo(vout, voutNext) {
+    if (vout.scriptPubKey.type != 'scripthash') {
+        return
+    }
+    if (voutNext.scriptPubKey.type != 'nulldata') {
+        return
+    }
+    let items = voutNext.scriptPubKey.asm.split(' ');
+    if (items.length != 3) {
+        return
+    }
+    // find the P2SH identifier
+    if (items[1] != 'P2SH') {
+        return
+    }
+    // get the redeem script from op return
+    let redeemScript = items[2];
+    let scriptHash = bitbox.Crypto.hash160(Buffer.from(redeemScript,'hex')).toString('hex')
+    // get the real script hash in vout
+    items = vout.scriptPubKey.asm.split(' ');
+    if (items.length != 3) {
+        return
+    }
+    // check if two script hash same
+    if (items[2] != scriptHash) {
+        return
+    }
+    // now, it is a revealer, parse it.
+    return extractArgsAndByteCode(redeemScript)
+}
+
 async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
     for (let i in tx.vin) {
         let vin = tx.vin[i]
@@ -173,7 +206,7 @@ async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
         let vout = tx.vout[i];
         let revealedInfo = undefined;
         if (i < tx.vout.length - 1) {
-            revealedInfo = parseRevealedInfo(vout, tx.vout[i + 1]); //TODO
+            revealedInfo = parseRevealedInfo(vout, tx.vout[i + 1]);
         }
         let tokenData = vout.tokenData;
         if (tokenData !== undefined || revealedInfo !== undefined) {
@@ -181,23 +214,64 @@ async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
                 id: tx.txid + "-" + i,
                 lockScript: vout.scriptPubKey?.hex,
                 bchValue: vout.value,
-                category: tokenData.category,
-                tokenAmount: tokenData.amount,
+                category: tokenData?.category,
+                tokenAmount: tokenData?.amount,
                 covenantBytecode: revealedInfo?.covenantBytecode,
                 constructorArgs: revealedInfo?.constructorArgs,
-                nftCommitment: tokenData.nft?.commitment,
-                nftCapability: tokenData.nft?.capability
+                nftCommitment: tokenData?.nft?.commitment,
+                nftCapability: tokenData?.nft?.capability
             }
             if (idsToBeDeletedInBlock.indexOf(utxo.id) >= 0) {
                 console.log("id:%s already be spent somewhere before in the same block", utxo.id)
                 continue
             }
-            if (vout.scriptPubKey.addresses != undefined) {
+            if (vout.scriptPubKey?.addresses != undefined) {
                 utxo.owner = vout.scriptPubKey.addresses[0]
             }
             utxo.addTime = Date.now()
             await InsertUtxoIntoDB(utxo)
             console.log("insert new token utxo:", utxo.id)
         }
+    }
+}
+
+const pushOps = [
+    'OP_0', 'OP_FALSE',
+    'OP_PUSHDATA1', 'OP_PUSHDATA2', 'OP_PUSHDATA4',
+    'OP_1NEGATE',
+    'OP_1', 'OP_TRUE',
+    'OP_2', 'OP_3', 'OP_4', 'OP_5',
+    'OP_6', 'OP_7', 'OP_8', 'OP_9',
+    'OP_10', 'OP_11', 'OP_12', 'OP_13',
+    'OP_14', 'OP_15', 'OP_16'
+]
+
+function extractArgsAndByteCode(redeemScript) {
+    let scriptSigBuffer = Buffer.from(redeemScript, 'hex');
+    let asm = bitbox.Script.toASM(scriptSigBuffer)
+    let items = asm.split(' ')
+    let constructorArgs;
+    for (let i in items) {
+        let item = items[i];
+        if (item.startsWith("OP_") && pushOps.indexOf(item) < 0) {
+            break
+        }
+        if (i == 0) {
+            constructorArgs = item
+        } else {
+            constructorArgs = constructorArgs + " " + item
+        }
+    }
+    if (constructorArgs == undefined) {
+        return {
+            covenantBytecode: redeemScript,
+            constructorArgs: ""
+        }
+    }
+    let args = bitbox.Script.fromASM(constructorArgs).toString('hex')
+    let byteCode = redeemScript.substring(args.length)
+    return {
+        covenantBytecode: byteCode,
+        constructorArgs: args
     }
 }

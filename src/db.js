@@ -1,4 +1,4 @@
-import {DataTypes, Sequelize} from 'sequelize';
+import {DataTypes, Op, Sequelize} from 'sequelize';
 
 let Utxos;
 let SyncInfo;
@@ -141,7 +141,7 @@ export async function GetUtxosByCommitment(commitment) {
 }
 
 export async function GetUtxosByCategoryAndCommitment(category, commitment) {
-    if (category == undefined) {
+    if (category == undefined || commitment == undefined) {
         return
     }
     return await Utxos.findAll(
@@ -155,3 +155,51 @@ export async function GetUtxosByCategoryAndCommitment(category, commitment) {
     )
 }
 
+// find item that args include in constructorArgs and bytecode exactly equal to covenantBytecode.
+export async function GetUtxosByConstructorArgsAndBytecode(args, bytecode) {
+    if (args == undefined || bytecode == undefined) {
+        return
+    }
+    return await Utxos.findAll(
+        {
+            where: {
+                covenantBytecode: bytecode,
+                constructorArgs: {
+                    [Op.like]: `%${args}%`
+                }
+            },
+            raw: true
+        }
+    )
+}
+
+// find item that args include in constructorArgs
+export async function GetUtxosByConstructorArgs(args) {
+    if (args == undefined) {
+        return
+    }
+    return await Utxos.findAll(
+        {
+            where: {
+                constructorArgs: {
+                    [Op.like]: `%${args}%`
+                }
+            },
+            raw: true
+        }
+    )
+}
+
+export async function GetUtxosByBytecode(bytecode) {
+    if (bytecode == undefined) {
+        return
+    }
+    return await Utxos.findAll(
+        {
+            where: {
+                covenantBytecode: bytecode
+            },
+            raw: true
+        }
+    )
+}
