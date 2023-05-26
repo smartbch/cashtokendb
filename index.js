@@ -23,7 +23,7 @@ app.get('/utxos', async (req, res) => {
     let category = req.query.category;
     let nftCommitment = req.query.commitment;
     let args = req.query.args;
-    let bytecode = req.query.args;
+    let bytecode = req.query.bytecode;
 
     if (category != undefined && nftCommitment != undefined) {
         utxos = await GetUtxosByCategoryAndCommitment(category, nftCommitment);
