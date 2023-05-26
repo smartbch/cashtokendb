@@ -70,7 +70,8 @@ export async function scan() {
             await handleMempool()
             await sleep(6 * 1000) // handle mempool txs every 6s
         } else {
-            // 1. handle the newest finalized block first, only handle output, though that input handle is reentrant
+            // 1. handle the newest finalized block first, this block maybe never see before, so both handle input and output,
+            // note that, the output handle support reentrant.
             await handleFinalizeBlock(h - finalizeNumber)
             // 2. check if reorg, if yes, handle the blocks we not have seen before
             if (newPrevBlkHash != prevBlkHash) {
@@ -119,7 +120,7 @@ async function handleMempool() {
 
 async function handleFinalizeBlock(h) {
     console.log("handle new finalized block:%d", h)
-    await handleBlocks(h, h, deleteUtxoById, true)
+    await handleBlocks(h, h, deleteUtxoById)
 }
 
 async function AddTxidToSpentByList(spentUtxoId, txid) {
@@ -136,7 +137,8 @@ async function catchup(latestSyncHeight, latestFinalizedHeight) {
 }
 
 let idsToBeDeletedInBlock = [];
-async function handleBlocks(startHeight, endHeight, handleSpentUtxoFunc, skipInput = false) {
+
+async function handleBlocks(startHeight, endHeight, handleSpentUtxoFunc) {
     for (let h = startHeight; h <= endHeight; h++) {
         console.log("handle block:%d", h)
         idsToBeDeletedInBlock = []
@@ -150,31 +152,29 @@ async function handleBlocks(startHeight, endHeight, handleSpentUtxoFunc, skipInp
         }
         for (let i in txs) {
             //console.log("handle tx: %s in block:%d", txs[i].txid, h)
-            await collectUtxoInfos(txs[i], handleSpentUtxoFunc, skipInput)
+            await collectUtxoInfos(txs[i], handleSpentUtxoFunc)
             await InsertOrUpdateSyncInfo(h, i)
         }
     }
 }
 
-async function collectUtxoInfos(tx, handleSpentUtxoFunc, skipInput = false) {
-    if (!skipInput) {
-        for (let i in tx.vin) {
-            let vin = tx.vin[i]
-            if (vin.txid == undefined) {
-                // it is a coinbase, skip
-                continue
-            }
-            let id = vin.txid + "-" + vin.vout
-            idsToBeDeletedInBlock.push(id)
-            await handleSpentUtxoFunc(id, tx.txid)
+async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
+    for (let i in tx.vin) {
+        let vin = tx.vin[i]
+        if (vin.txid == undefined) {
+            // it is a coinbase, skip
+            continue
         }
+        let id = vin.txid + "-" + vin.vout
+        idsToBeDeletedInBlock.push(id)
+        await handleSpentUtxoFunc(id, tx.txid)
     }
     for (let i in tx.vout) {
         let vout = tx.vout[i];
-	let revealedInfo = undefined;
-	if (i < tx.vout.length - 1) {
-	   revealedInfo = parseRevealedInfo(vout, tx.vout[i+1]); //TODO
-	}
+        let revealedInfo = undefined;
+        if (i < tx.vout.length - 1) {
+            revealedInfo = parseRevealedInfo(vout, tx.vout[i + 1]); //TODO
+        }
         let tokenData = vout.tokenData;
         if (tokenData !== undefined || revealedInfo !== undefined) {
             let utxo = {
