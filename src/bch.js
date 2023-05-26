@@ -206,7 +206,7 @@ async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
         let vout = tx.vout[i];
         let revealedInfo = undefined;
         if (i < tx.vout.length - 1) {
-            revealedInfo = parseRevealedInfo(vout, tx.vout[i + 1]);
+            revealedInfo = parseRevealedInfo(vout, tx.vout[1 + Number(i)]);
         }
         let tokenData = vout.tokenData;
         if (tokenData !== undefined || revealedInfo !== undefined) {
