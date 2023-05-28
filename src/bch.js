@@ -217,7 +217,11 @@ async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
                 category: tokenData?.category,
                 tokenAmount: tokenData?.amount,
                 covenantBytecode: revealedInfo?.covenantBytecode,
-                constructorArgs: revealedInfo?.constructorArgs,
+                constructorArg0: revealedInfo?.constructorArgs.arg0,
+                constructorArg1: revealedInfo?.constructorArgs.arg1,
+                constructorArg2: revealedInfo?.constructorArgs.arg2,
+                constructorArg3: revealedInfo?.constructorArgs.arg3,
+                constructorArgs: revealedInfo?.constructorArgs.args,
                 nftCommitment: tokenData?.nft?.commitment,
                 nftCapability: tokenData?.nft?.capability
             }
@@ -250,28 +254,41 @@ function extractArgsAndByteCode(redeemScript) {
     let scriptSigBuffer = Buffer.from(redeemScript, 'hex');
     let asm = bitbox.Script.toASM(scriptSigBuffer)
     let items = asm.split(' ')
-    let constructorArgs;
-    for (let i in items) {
+    let constructorArgs = {
+	    arg0: "",
+	    arg1: "",
+	    arg2: "",
+	    arg3: "",
+	    args: "",
+    }
+    let i;
+    for (i = 0; i < items.length; i++) {
         let item = items[i];
         if (item.startsWith("OP_") && pushOps.indexOf(item) < 0) {
             break
         }
-        if (i == 0) {
-            constructorArgs = item
-        } else {
-            constructorArgs = constructorArgs + " " + item
-        }
+	if (constructorArgs.arg0.length == 0) {
+	    constructorArgs.arg0 = item;
+	} else if (constructorArgs.arg1.length == 0) {
+	    constructorArgs.arg1 = item;
+	} else if (constructorArgs.arg2.length == 0) {
+	    constructorArgs.arg2 = item;
+	} else if (constructorArgs.arg3.length == 0) {
+	    constructorArgs.arg3 = item;
+	} else {
+	    constructorArgs.args = constructorArgs.args + " " + item;
+	}
     }
-    if (constructorArgs == undefined) {
+    if (constructorArgs.arg0.length == 0) {
         return {
             covenantBytecode: redeemScript,
-            constructorArgs: ""
+            constructorArgs: constructorArgs,
         }
     }
-    let args = bitbox.Script.fromASM(constructorArgs).toString('hex')
+    let args = bitbox.Script.fromASM(items.slice(0, i).join(' ')).toString('hex')
     let byteCode = redeemScript.substring(args.length)
     return {
         covenantBytecode: byteCode,
-        constructorArgs: args
+        constructorArgs: constructorArgs,
     }
 }

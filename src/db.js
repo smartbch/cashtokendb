@@ -34,7 +34,11 @@ export async function InitDB() {
             nftCommitment: DataTypes.STRING,
             nftCapability: DataTypes.STRING, // none || mutable || minting
             covenantBytecode: DataTypes.STRING, // covenant's "bare" bytecode compiled by cashscript
-            constructorArgs: DataTypes.STRING, // the constructor's arguments for a covenant
+            constructorArg0: DataTypes.STRING, // the constructor's #0 arguments
+            constructorArg1: DataTypes.STRING, // the constructor's #1 arguments
+            constructorArg2: DataTypes.STRING, // the constructor's #2 arguments
+            constructorArg3: DataTypes.STRING, // the constructor's #3 arguments
+            constructorArgs: DataTypes.STRING, // the constructor's other arguments for a covenant
             owner: DataTypes.STRING,
             spentByList: DataTypes.STRING, // txs separated by comma
             addTime: DataTypes.INTEGER,
