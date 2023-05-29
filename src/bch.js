@@ -172,7 +172,7 @@ function parseRevealedInfo(vout, voutNext) {
         return
     }
     // find the P2SH identifier
-    if (items[1] != 'P2SH') {
+    if (!voutNext.scriptPubKey.hex.startsWith('6a0450325348')) { // OP_RETURN P2SH
         return
     }
     // get the redeem script from op return
@@ -184,7 +184,7 @@ function parseRevealedInfo(vout, voutNext) {
         return
     }
     // check if two script hash same
-    if (items[2] != scriptHash) {
+    if (items[1] != scriptHash) {
         return
     }
     // now, it is a revealer, parse it.
