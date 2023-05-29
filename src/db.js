@@ -1,5 +1,5 @@
 import {DataTypes, Op, Sequelize} from 'sequelize';
-
+import {decodeCashAddressFormat}  from '@bitauth/libauth'
 let Utxos;
 let SyncInfo;
 
@@ -9,7 +9,7 @@ export async function InitDB() {
             dialect: 'sqlite',
             storage: './token.sqlite',
             logging: false,
-            query:{raw:true}
+            query: {raw: true}
         }
     );
     //const sequelize = new Sequelize('sqlite::memory:');
@@ -85,6 +85,10 @@ export async function InsertUtxoIntoDB(utxo) {
             nftCommitment: utxo.nftCommitment,
             nftCapability: utxo.nftCapability,
             covenantBytecode: utxo.covenantBytecode,
+            constructorArg0: utxo.constructorArg0,
+            constructorArg1: utxo.constructorArg1,
+            constructorArg2: utxo.constructorArg2,
+            constructorArg3: utxo.constructorArg3,
             constructorArgs: utxo.constructorArgs,
             owner: utxo.owner,
             spentByList: utxo.spentByList,
@@ -206,4 +210,61 @@ export async function GetUtxosByBytecode(bytecode) {
             raw: true
         }
     )
+}
+
+const validQueryParams = [
+    'lockScript',
+    'category',
+    'nftCommitment', // todo: all hex?
+    'nftCapability',
+    'covenantBytecode',
+    'constructorArg0',
+    'constructorArg1',
+    'constructorArg2',
+    'constructorArg3',
+    'constructorArgs',
+    'owner', // must valid bch cash address
+]
+
+const validNftCapability  = [
+    'none',
+    'minting',
+    'mutable'
+]
+
+export async function GetUtxos(params) {
+    if (!params instanceof Object) {
+        return new Error("invalid query params")
+    }
+    let queryObj = {};
+    let keys = Object.keys(params)
+    for (let key of keys) {
+        if (validQueryParams.indexOf(key) < 0) {
+            return "invalid param:" + key
+        }
+        if (key === 'nftCapability') {
+            if (validNftCapability.indexOf(params[key]) <0) {
+                return "invalid nftCapability:" + params[key]
+            }
+        } else if (key === 'owner') {
+            let res = decodeCashAddressFormat(params[key])
+            if (typeof res === 'string' || res instanceof String) {
+                return "invalid cash address:" + res.toString()
+            }
+        } else if (!isHexString(params[key])) {
+            return params[key] + " is not hex string"
+        }
+        queryObj[key] = params[key]
+    }
+    return await Utxos.findAll(
+        {
+            where: queryObj,
+            raw: true
+        }
+    )
+}
+
+function isHexString(s) {
+    const regex = '^[a-fA-F0-9]+$'
+    return s.length % 2 === 0 && s.match(regex) != null
 }

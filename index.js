@@ -2,12 +2,7 @@ import express from 'express';
 import bodyParser from 'body-parser';
 import {scan} from "./src/bch.js";
 import {
-    GetUtxosByBytecode,
-    GetUtxosByCategory,
-    GetUtxosByCategoryAndCommitment,
-    GetUtxosByCommitment,
-    GetUtxosByConstructorArgs,
-    GetUtxosByConstructorArgsAndBytecode
+    GetUtxos
 } from "./src/db.js";
 import cors from 'cors';
 
@@ -20,29 +15,9 @@ app.get('/', (req, res) => {
     res.send('This is cash token db');
 });
 
-app.get('/utxos', async (req, res) => {
+app.post('/utxos', async (req, res) => {
     let utxos;
-    let category = req.query.category;
-    let nftCommitment = req.query.commitment;
-    let args = req.query.args;
-    let bytecode = req.query.bytecode;
-
-    if (category != undefined && nftCommitment != undefined) {
-        utxos = await GetUtxosByCategoryAndCommitment(category, nftCommitment);
-    } else if (category != undefined) {
-        utxos = await GetUtxosByCategory(category);
-    } else if (nftCommitment != undefined) {
-        utxos = await GetUtxosByCommitment(nftCommitment);
-    } else if (args != undefined && bytecode != undefined) {
-        utxos = await GetUtxosByConstructorArgsAndBytecode(args, bytecode)
-    } else if (args != undefined) {
-        utxos = await GetUtxosByConstructorArgs(args)
-    } else if (bytecode != undefined) {
-        utxos = await GetUtxosByBytecode(bytecode)
-    } else {
-        res.send("invalid query param")
-        return
-    }
+    utxos = await GetUtxos(req.body)
     res.send(utxos);
 });
 

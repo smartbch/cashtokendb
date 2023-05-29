@@ -177,7 +177,7 @@ function parseRevealedInfo(vout, voutNext) {
     }
     // get the redeem script from op return
     let redeemScript = items[2];
-    let scriptHash = bitbox.Crypto.hash160(Buffer.from(redeemScript,'hex')).toString('hex')
+    let scriptHash = bitbox.Crypto.hash160(Buffer.from(redeemScript, 'hex')).toString('hex')
     // get the real script hash in vout
     items = vout.scriptPubKey.asm.split(' ');
     if (items.length != 3) {
@@ -255,11 +255,11 @@ function extractArgsAndByteCode(redeemScript) {
     let asm = bitbox.Script.toASM(scriptSigBuffer)
     let items = asm.split(' ')
     let constructorArgs = {
-	    arg0: "",
-	    arg1: "",
-	    arg2: "",
-	    arg3: "",
-	    args: "",
+        arg0: "",
+        arg1: "",
+        arg2: "",
+        arg3: "",
+        args: "",
     }
     let i;
     for (i = 0; i < items.length; i++) {
@@ -267,17 +267,17 @@ function extractArgsAndByteCode(redeemScript) {
         if (item.startsWith("OP_") && pushOps.indexOf(item) < 0) {
             break
         }
-	if (constructorArgs.arg0.length == 0) {
-	    constructorArgs.arg0 = item;
-	} else if (constructorArgs.arg1.length == 0) {
-	    constructorArgs.arg1 = item;
-	} else if (constructorArgs.arg2.length == 0) {
-	    constructorArgs.arg2 = item;
-	} else if (constructorArgs.arg3.length == 0) {
-	    constructorArgs.arg3 = item;
-	} else {
-	    constructorArgs.args = constructorArgs.args + " " + item;
-	}
+        if (constructorArgs.arg0.length == 0) {
+            constructorArgs.arg0 = item;
+        } else if (constructorArgs.arg1.length == 0) {
+            constructorArgs.arg1 = item;
+        } else if (constructorArgs.arg2.length == 0) {
+            constructorArgs.arg2 = item;
+        } else if (constructorArgs.arg3.length == 0) {
+            constructorArgs.arg3 = item;
+        } else {
+            constructorArgs.args = constructorArgs.args + " " + item;
+        }
     }
     if (constructorArgs.arg0.length == 0) {
         return {
