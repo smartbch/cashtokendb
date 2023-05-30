@@ -1,26 +1,23 @@
-**Get utxos has specific token category:**
+**Get utxos by multi-parameters form the WHERE condition in the SELECT sql query statement according to the logical AND relationship:**
 
-`/utxos?category={specific_token_category}`
+Post `/utxos`
 
-**Get utxos has specific nft commitment:**
-
-`/utxos?commitment={specific_token_nft_commitment}`
-
-**Get the utxos whose constructorArgs include specific {args}:**
-
-`/utxos?args={covenant_contract_constructor_arguments_for_revealer_p2sh_tx}  `
-
-**Get the utxos has specific covenant bytecode:**
-
-`/utxos?bytecode={covenant_contract_bytecode_for_revealer_p2sh_tx}`
-
-**Get the utxos has specific category and nft commitment:**
-
-`/utxos?category={specific_token_category}&commitment={specific_token_nft_commitment}`
-
-**Get the utxos has specific covenant bytecode and include specific args in constructorArgs:**
-
-`/utxos?args={ovenant_contract_constructor_argument_for_revealer_p2sh_tx}&bytecode={covenant_contract_bytecode_for_revealer_p2sh_tx}`
+query parameters in request body like below:
+```
+{
+    'lockScript': "hex-string",
+    'category': "hex-string, token category",
+    'nftCommitment': "hex-string, nft token commitment",
+    'nftCapability': "enum: 'none','minting','mutable'",
+    'covenantBytecode': "hex-string, covenant contract bytecode without args",
+    'constructorArg0': "hex-string, covenant contract constructor last argument",
+    'constructorArg1': "hex-string, covenant contract constructor second-to-last argument"，
+    'constructorArg2': "hex-string, covenant contract constructor the third last argument",
+    'constructorArg3': "hex-string, covenant contract constructor the fourth last argument"
+    'constructorArgs': "hex-string, covenant contract constructor left",
+    'owner': "utxo owner in bch cash address formsat"
+}
+```
 
 ### Response
 
@@ -35,6 +32,10 @@
     "nftCommitment": "02",
     "nftCapability": "none",
     "covenantBytecode": null,
+    "constructorArg0": null,
+    "constructorArg1": null,
+    "constructorArg2": null,
+    "constructorArg3": null,
     "constructorArgs": null,
     "owner": "bitcoincash:qpkq787krfaxkjsmwzj8yzmqsyw9wca2ac23zyqrqa",
     "spentByList": null,
@@ -49,10 +50,28 @@
     "nftCommitment": "00",
     "nftCapability": "none",
     "covenantBytecode": null,
+    "constructorArg0": null,
+    "constructorArg1": null,
+    "constructorArg2": null,
+    "constructorArg3": null,
     "constructorArgs": null,
     "owner": "bitcoincash:qpkq787krfaxkjsmwzj8yzmqsyw9wca2ac23zyqrqa",
     "spentByList": null,
     "addTime": 1685112266208
   }
 ]
+```
+
+### Example
+
+If we want query utxos using `constructorArg0` and `covenantBytecode`, we can do below:
+
+```
+curl -H "Content-Type: application/json" -X POST -d '{"constructorArg0":"41ed", "covenantBytecode":"1234abcdef1234"}'  http://127.0.0.1:8001/utxos
+```
+
+And server will execute below sql statement in table utxos of local db:
+
+```
+select * from utxos where constructorArg0 = "41ed" and covenantBytecode = "1234abcdef1234"
 ```
