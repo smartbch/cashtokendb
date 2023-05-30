@@ -240,16 +240,48 @@ async function collectUtxoInfos(tx, handleSpentUtxoFunc) {
     }
 }
 
-const pushOps = [
+const NumberOps = [
     'OP_0', 'OP_FALSE',
-    'OP_PUSHDATA1', 'OP_PUSHDATA2', 'OP_PUSHDATA4',
-    'OP_1NEGATE',
     'OP_1', 'OP_TRUE',
     'OP_2', 'OP_3', 'OP_4', 'OP_5',
     'OP_6', 'OP_7', 'OP_8', 'OP_9',
     'OP_10', 'OP_11', 'OP_12', 'OP_13',
     'OP_14', 'OP_15', 'OP_16'
 ]
+
+const pushOps = [
+    'OP_PUSHDATA1', 'OP_PUSHDATA2', 'OP_PUSHDATA4',
+    'OP_1NEGATE',
+].concat(NumberOps)
+
+const OP_XMap = {
+    'OP_0': "00",
+    'OP_FALSE': "00",
+    'OP_1': "01",
+    'OP_TRUE': "01",
+    'OP_2': "02",
+    'OP_3': "03",
+    'OP_4': "04",
+    'OP_5': "05",
+    'OP_6': "06",
+    'OP_7': "07",
+    'OP_8': "08",
+    'OP_9': "09",
+    'OP_10': "0a",
+    'OP_11': "0b",
+    'OP_12': "0c",
+    'OP_13': "0d",
+    'OP_14': "0e",
+    'OP_15': "0f",
+    'OP_16': "10"
+}
+
+function convertOPXToHex(opNumber) {
+    if (NumberOps.indexOf(opNumber) < 0) {
+        return opNumber
+    }
+    return OP_XMap[opNumber]
+}
 
 function extractArgsAndByteCode(redeemScript) {
     let scriptSigBuffer = Buffer.from(redeemScript, 'hex');
@@ -268,6 +300,7 @@ function extractArgsAndByteCode(redeemScript) {
         if (item.startsWith("OP_") && pushOps.indexOf(item) < 0) {
             break
         }
+        item = convertOPXToHex(item)
         if (constructorArgs.arg0.length == 0) {
             constructorArgs.arg0 = item;
         } else if (constructorArgs.arg1.length == 0) {
