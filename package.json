@@ -10,7 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@bitauth/libauth": "^1.19.1",
+    "@bitauth/libauth": "v2.0.0-alpha.8",
     "bchjs": "^0.1.0-alpha.3",
     "bitbox-sdk": "^8.11.2",
     "body-parser": "^1.20.2",

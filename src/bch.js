@@ -2,6 +2,7 @@ import {BCH, HttpProvider} from 'bchjs';
 import {DeleteUtxo, GetSyncInfo, InitDB, InsertOrUpdateSyncInfo, InsertUtxoIntoDB, UpdateSpentByList} from './db.js'
 import {sleep} from "./util.js";
 import {BITBOX} from 'bitbox-sdk';
+import {binToHex, hash160, hexToBin} from "@bitauth/libauth";
 
 const bitbox = new BITBOX();
 
@@ -177,7 +178,7 @@ function parseRevealedInfo(vout, voutNext) {
     }
     // get the redeem script from op return
     let redeemScript = items[2];
-    let scriptHash = bitbox.Crypto.hash160(Buffer.from(redeemScript, 'hex')).toString('hex')
+    let scriptHash = binToHex(hash160(hexToBin(redeemScript)))
     // get the real script hash in vout
     items = vout.scriptPubKey.asm.split(' ');
     if (items.length != 3) {
