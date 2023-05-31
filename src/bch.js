@@ -94,30 +94,30 @@ export async function scan() {
     }
 }
 
-let oldTxsInMempool;
+let oldTxidListInMempool;
 
 async function handleMempool() {
     console.log("handle mempool")
-    let txs = await bch.rpc.getrawmempool();
+    let txidList = await bch.rpc.getrawmempool();
     //console.log("txs number in mempool:", txs.length)
-    if (txs == undefined) {
+    if (txidList == undefined) {
         return
     }
-    let newTxs;
-    if (oldTxsInMempool == undefined) {
-        oldTxsInMempool = txs
-        newTxs = txs
+    let newTxidList;
+    if (oldTxidListInMempool == undefined) {
+        oldTxidListInMempool = txidList
+        newTxidList = txidList
     } else {
-        newTxs = txs.filter(x => oldTxsInMempool.indexOf(x) === -1)
+        newTxidList = txidList.filter(x => oldTxidListInMempool.indexOf(x) === -1)
     }
-    console.log("new txs number in mempool:", newTxs.length)
-    for (let i = 0; i < newTxs.length; i++) {
-        let tx = await bch.rpc.getrawtransaction(newTxs[i], true)
+    console.log("new txs number in mempool:", newTxidList.length)
+    for (let i = 0; i < newTxidList.length; i++) {
+        let tx = await bch.rpc.getrawtransaction(newTxidList[i], true)
         //console.log(tx)
         if (tx == undefined) {
             continue
         }
-        await collectUtxoInfos(newTxs[i], AddTxidToSpentByList)
+        await collectUtxoInfos(tx, AddTxidToSpentByList)
     }
 }
 
