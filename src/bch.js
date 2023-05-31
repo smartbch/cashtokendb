@@ -71,7 +71,7 @@ export async function scan() {
         if (txs == undefined) {
             // handle mempool here
             await handleMempool()
-            await sleep(6 * 1000) // handle mempool txs every 6s
+            await sleep(600) // handle mempool txs every 600ms
         } else {
             // 1. handle the newest finalized block first, this block maybe never see before, so both handle input and output,
             // note that, the output handle support reentrant.
