@@ -251,7 +251,7 @@ export async function initElectrumClient() {
     return electrum_
 }
 
-export async function GetUtxos(params, recheck = false) {
+export async function GetUtxos(params, recheck = true) {
     if (!params instanceof Object) {
         return new Error("invalid query params")
     }
