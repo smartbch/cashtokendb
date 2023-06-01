@@ -50,6 +50,7 @@ export async function InitDB() {
             owner: DataTypes.STRING,
             spentByList: DataTypes.STRING, // txs separated by comma
             addTime: DataTypes.INTEGER,
+            delTime: DataTypes.INTEGER,
         }, {timestamps: false});
     await sequelize.sync()
 }
@@ -123,9 +124,10 @@ export async function UpdateSpentByList(id, txid) {
             return
         }
         spentByList = utxo.spentByList + "," + txid
+        await Utxos.update({spentByList: spentByList}, {where: {id: id}})
+    } else {
+        await Utxos.update({spentByList: spentByList, delTime: Date.now()}, {where: {id: id}})
     }
-    //console.log("spentByList:", spentByList)
-    await Utxos.update({spentByList: spentByList}, {where: {id: id}})
 }
 
 export async function GetUtxosByCategory(category) {
