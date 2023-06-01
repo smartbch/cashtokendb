@@ -17,7 +17,8 @@ app.get('/', (req, res) => {
 
 app.post('/utxos', async (req, res) => {
     let utxos;
-    utxos = await GetUtxos(req.body)
+    let recheck = req.url.recheck
+    utxos = await GetUtxos(req.body, recheck)
     res.send(utxos);
 });
 

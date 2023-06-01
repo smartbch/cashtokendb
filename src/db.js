@@ -1,5 +1,13 @@
 import {DataTypes, Op, Sequelize} from 'sequelize';
-import {decodeCashAddressFormat}  from '@bitauth/libauth'
+import {decodeCashAddressFormat} from '@bitauth/libauth'
+import ElectrumClient from "@tkone7/electrum-client-js";
+
+const electrumHost = ''
+const electrumPort = 50004
+const electrumProto = "wss"
+
+let electrum = await initElectrumClient()
+
 let Utxos;
 let SyncInfo;
 
@@ -226,13 +234,22 @@ const validQueryParams = [
     'owner', // must valid bch cash address
 ]
 
-const validNftCapability  = [
+const validNftCapability = [
     'none',
     'minting',
     'mutable'
 ]
 
-export async function GetUtxos(params) {
+export async function initElectrumClient() {
+    const electrum_ = new ElectrumClient(electrumHost, electrumPort, electrumProto);
+    await electrum_.connect(
+        'cash_token_db',
+        '1.4.2'
+    )
+    return electrum_
+}
+
+export async function GetUtxos(params, recheck = false) {
     if (!params instanceof Object) {
         return new Error("invalid query params")
     }
@@ -243,7 +260,7 @@ export async function GetUtxos(params) {
             return "invalid param:" + key
         }
         if (key === 'nftCapability') {
-            if (validNftCapability.indexOf(params[key]) <0) {
+            if (validNftCapability.indexOf(params[key]) < 0) {
                 return "invalid nftCapability:" + params[key]
             }
         } else if (key === 'owner') {
@@ -256,12 +273,31 @@ export async function GetUtxos(params) {
         }
         queryObj[key] = params[key]
     }
-    return await Utxos.findAll(
+    let utxos = await Utxos.findAll(
         {
             where: queryObj,
             raw: true
         }
     )
+    if (recheck) {
+        let res = []
+        for (let utxo of utxos) {
+            if (utxo.spentByList != null) {
+                continue
+            }
+            const info = await getUtxoInfo(utxo.id.substring(0, 64), utxo.id.substring(65,))
+            if (info == null) {
+                continue
+            }
+            res.push(utxo)
+        }
+        return res
+    }
+    return utxos
+}
+
+async function getUtxoInfo(txid, outN) {
+    return await electrum.request('blockchain.utxo.get_info', [txid, outN])
 }
 
 function isHexString(s) {
